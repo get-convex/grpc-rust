@@ -46,6 +46,9 @@ pub struct Endpoint {
     pub(crate) http2_keep_alive_timeout: Option<Duration>,
     pub(crate) http2_keep_alive_while_idle: Option<bool>,
     pub(crate) http2_max_header_list_size: Option<u32>,
+    // cvx fork. None = hyper/h2 default; Some(inner) is passed to hyper's
+    // max_local_error_reset_streams. See the setter for full semantics.
+    pub(crate) http2_max_local_error_reset_streams: Option<Option<usize>>,
     pub(crate) connect_timeout: Option<Duration>,
     pub(crate) http2_adaptive_window: Option<bool>,
     pub(crate) local_address: Option<IpAddr>,
@@ -93,6 +96,7 @@ impl Endpoint {
             http2_keep_alive_timeout: None,
             http2_keep_alive_while_idle: None,
             http2_max_header_list_size: None,
+            http2_max_local_error_reset_streams: None,
             connect_timeout: None,
             http2_adaptive_window: None,
             executor: SharedExec::tokio(),
@@ -122,6 +126,7 @@ impl Endpoint {
             http2_keep_alive_timeout: None,
             http2_keep_alive_while_idle: None,
             http2_max_header_list_size: None,
+            http2_max_local_error_reset_streams: None,
             connect_timeout: None,
             http2_adaptive_window: None,
             executor: SharedExec::tokio(),
@@ -420,6 +425,24 @@ impl Endpoint {
     pub fn http2_max_header_list_size(self, size: u32) -> Self {
         Endpoint {
             http2_max_header_list_size: Some(size),
+            ..self
+        }
+    }
+
+    /// Sets the maximum number of local streams that may be reset due to
+    /// protocol errors over the lifetime of an HTTP/2 client connection
+    /// (h2's `max_local_error_reset_streams`).
+    ///
+    /// When the limit is reached, h2 tears the connection down with a GOAWAY
+    /// (`ENHANCE_YOUR_CALM`, `"too_many_internal_resets"`). Leaving this unset
+    /// keeps hyper/h2's default (1024). Pass `None` to disable the limit
+    /// entirely; this removes h2's excessive-reset protection, so only do so
+    /// for connections to trusted peers (e.g. internal services).
+    ///
+    /// cvx fork addition — upstream tonic exposes this only on `Server`.
+    pub fn http2_max_local_error_reset_streams(self, max: impl Into<Option<usize>>) -> Self {
+        Endpoint {
+            http2_max_local_error_reset_streams: Some(max.into()),
             ..self
         }
     }
